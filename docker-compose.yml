@@ -1,0 +1,146 @@
+services:
+  immich_postgres:
+    image: tensorchord/pgvecto-rs:pg14-v0.2.0@sha256:90724186f0a3517cf6914295b5ab410db9ce23190a2d9d0b9dd6463e3fa298f0
+    container_name: immich_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_DATABASE}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ${POSTGRES_DATA}:/var/lib/postgresql/data
+      - ${POSTGRES_BACKUP}:/data/db_backup # optional, use if doing DB dump for backups
+    labels:
+      net.unraid.docker.icon: '/mnt/user/system/icons/postgres.png'
+    networks:
+      - immich_postgres     
+
+  immich_redis:
+    image: registry.hub.docker.com/library/redis:6.2-alpine@sha256:51d6c56749a4243096327e3fb964a48ed92254357108449cb6e23999c37773c5
+    container_name: immich_redis
+    restart: unless-stopped
+    volumes:
+      - ${REDIS_DATA}:/data # optional
+    networks:
+      - immich_redis
+    labels:
+      net.unraid.docker.icon: '/mnt/user/system/icons/redis.png'
+
+  immich_server:
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    command: [ "start.sh", "immich" ]
+    container_name: immich_server
+    restart: unless-stopped
+    environment:
+      - DB_PORT=${DB_PORT}
+      - DB_DATABASE_NAME=${DB_DATABASE}
+      - DB_HOSTNAME=${DB_HOSTNAME}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOSTNAME=${REDIS_HOSTNAME}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_DBINDEX=${REDIS_DBINDEX}    
+      - IMMICH_MACHINE_LEARNING_URL=${IMMICH_MACHINE_LEARNING_URL}    
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY}    
+    volumes:
+      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+      - ${IMPORT_LOCATION}:/usr/src/app/import
+      - ${THUMBNAIL_LOCATION}:/usr/src/app/upload/thumbs
+      - ${ENCODED_VID_LOCATION}:/usr/src/app/upload/encoded-video
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      net.unraid.docker.webui: 'https://<yoururl>/'
+      net.unraid.docker.icon: '/mnt/user/system/icons/immich.png'
+    # ports:
+    #   - 2283:3001
+    networks:
+      immich_redis:
+      immich_postgres:
+      nginx_pictures:
+    depends_on:
+      - immich_redis
+      - immich_postgres
+
+  immich_microservices:
+    container_name: immich_microservices
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    command: [ "start.sh", "microservices" ]
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      - TZ=America/Chicago
+      - DB_DATABASE_NAME=${DB_DATABASE}
+      - DB_HOSTNAME=${DB_HOSTNAME}
+      - DB_PORT=${DB_PORT}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOSTNAME=${REDIS_HOSTNAME}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_DBINDEX=${REDIS_DBINDEX}      
+      - IMMICH_MACHINE_LEARNING_URL=${IMMICH_MACHINE_LEARNING_URL}    
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY} 
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_VISIBLE_DEVICES=all         
+    volumes:
+      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+      - ${IMPORT_LOCATION}:/usr/src/app/import
+      - ${THUMBNAIL_LOCATION}:/usr/src/app/upload/thumbs
+      - ${ENCODED_VID_LOCATION}:/usr/src/app/upload/encoded-video     
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      immich_redis:
+      immich_postgres:
+      nginx_pictures:    
+    labels:
+      net.unraid.docker.webui: 'https://<yoururl>/'
+      net.unraid.docker.icon: '/mnt/user/system/icons/immich.png'
+    depends_on:
+      - immich_redis
+      - immich_postgres
+    devices:
+      - /dev/dri:/dev/dri
+
+  immich_machine_learning:
+    container_name: immich_machine_learning
+    restart: unless-stopped
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-cuda
+    environment:
+      - MACHINE_LEARNING_MODEL_TTL=${MACHINE_LEARNING_MODEL_TTL}
+      - MACHINE_LEARNING_MODEL_TTL_POLL_S=${MACHINE_LEARNING_MODEL_TTL_POLL_S}
+      - MACHINE_LEARNING_CACHE_FOLDER=${MACHINE_LEARNING_CACHE_FOLDER}
+      - MACHINE_LEARNING_REQUEST_THREADS=${MACHINE_LEARNING_REQUEST_THREADS}
+      - MACHINE_LEARNING_MODEL_INTER_OP_THREADS=${MACHINE_LEARNING_MODEL_INTER_OP_THREADS}
+      - MACHINE_LEARNING_MODEL_INTRA_OP_THREADS=${MACHINE_LEARNING_MODEL_INTRA_OP_THREADS}
+      - MACHINE_LEARNING_WORKERS=${MACHINE_LEARNING_WORKERS}
+      - MACHINE_LEARNING_WORKER_TIMEOUT=${MACHINE_LEARNING_WORKER_TIMEOUT}
+      - IMMICH_MACHINE_LEARNING_URL=${IMMICH_MACHINE_LEARNING_URL}
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY}    
+    volumes:
+      - ${MACHINE_LEARNING_CACHE}:/cache
+    networks:
+      nginx_pictures:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities:
+                - gpu
+                
+networks:
+  immich_redis:
+    driver: bridge
+    internal: true
+    name: immich_redis
+
+  immich_postgres:
+    driver: bridge
+    internal: true
+    name: immich_postgres    
+
+  nginx_pictures:
+    driver: bridge
+    internal: false
+    name: nginx_pictures
