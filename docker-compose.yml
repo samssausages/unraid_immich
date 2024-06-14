@@ -28,9 +28,9 @@ services:
 
   immich_server:
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
-    command: [ "start.sh", "immich" ]
     container_name: immich_server
     restart: unless-stopped
+    runtime: nvidia
     environment:
       - DB_PORT=${DB_PORT}
       - DB_DATABASE_NAME=${DB_DATABASE}
@@ -42,6 +42,8 @@ services:
       - REDIS_DBINDEX=${REDIS_DBINDEX}    
       - IMMICH_MACHINE_LEARNING_URL=${IMMICH_MACHINE_LEARNING_URL}    
       - TYPESENSE_API_KEY=${TYPESENSE_API_KEY}    
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_VISIBLE_DEVICES=all  
     volumes:
       - ${UPLOAD_LOCATION}:/usr/src/app/upload
       - ${IMPORT_LOCATION}:/usr/src/app/import
@@ -49,7 +51,7 @@ services:
       - ${ENCODED_VID_LOCATION}:/usr/src/app/upload/encoded-video
       - /etc/localtime:/etc/localtime:ro
     labels:
-      net.unraid.docker.webui: 'https://<yoururl>/'
+      net.unraid.docker.webui: 'https://<your_IP_or_domain>/'
       net.unraid.docker.icon: '/mnt/user/system/icons/immich.png'
     # ports:
     #   - 2283:3001
@@ -57,49 +59,11 @@ services:
       immich_redis:
       immich_postgres:
       nginx_pictures:
-    depends_on:
-      - immich_redis
-      - immich_postgres
-
-  immich_microservices:
-    container_name: immich_microservices
-    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
-    command: [ "start.sh", "microservices" ]
-    restart: unless-stopped
-    runtime: nvidia
-    environment:
-      - TZ=America/Chicago
-      - DB_DATABASE_NAME=${DB_DATABASE}
-      - DB_HOSTNAME=${DB_HOSTNAME}
-      - DB_PORT=${DB_PORT}
-      - DB_DATABASE=${DB_DATABASE}
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOSTNAME=${REDIS_HOSTNAME}
-      - REDIS_PORT=${REDIS_PORT}
-      - REDIS_DBINDEX=${REDIS_DBINDEX}      
-      - IMMICH_MACHINE_LEARNING_URL=${IMMICH_MACHINE_LEARNING_URL}    
-      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY} 
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - NVIDIA_VISIBLE_DEVICES=all         
-    volumes:
-      - ${UPLOAD_LOCATION}:/usr/src/app/upload
-      - ${IMPORT_LOCATION}:/usr/src/app/import
-      - ${THUMBNAIL_LOCATION}:/usr/src/app/upload/thumbs
-      - ${ENCODED_VID_LOCATION}:/usr/src/app/upload/encoded-video     
-      - /etc/localtime:/etc/localtime:ro
-    networks:
-      immich_redis:
-      immich_postgres:
-      nginx_pictures:    
-    labels:
-      net.unraid.docker.webui: 'https://<yoururl>/'
-      net.unraid.docker.icon: '/mnt/user/system/icons/immich.png'
-    depends_on:
-      - immich_redis
-      - immich_postgres
     devices:
       - /dev/dri:/dev/dri
+    depends_on:
+      - immich_redis
+      - immich_postgres
 
   immich_machine_learning:
     container_name: immich_machine_learning
@@ -132,15 +96,18 @@ services:
 networks:
   immich_redis:
     driver: bridge
+    external: true
     internal: true
     name: immich_redis
 
   immich_postgres:
     driver: bridge
+    external: true
     internal: true
     name: immich_postgres    
 
   nginx_pictures:
     driver: bridge
+    external: true
     internal: false
     name: nginx_pictures
