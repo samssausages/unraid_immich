@@ -53,7 +53,7 @@ services:
     labels:
       net.unraid.docker.webui: 'https://<your_IP_or_domain>/'
       net.unraid.docker.icon: '/mnt/user/system/icons/immich.png'
-    # ports:
+    # ports:  # Not needed if using custom docker network for proxy
     #   - 2283:3001
     networks:
       immich_redis:
@@ -96,18 +96,15 @@ services:
 networks:
   immich_redis:
     driver: bridge
-    external: true
     internal: true
     name: immich_redis
 
   immich_postgres:
     driver: bridge
-    external: true
     internal: true
     name: immich_postgres    
 
   nginx_pictures:
     driver: bridge
-    external: true
     internal: false
     name: nginx_pictures
